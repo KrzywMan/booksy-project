@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hardware Hub - Dashboard</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div id="app" class="container mx-auto p-8">
+        
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800">🎯 Hardware Hub</h1>
+            <div class="flex items-center gap-4">
+                <span class="text-sm text-gray-500 italic">Logged in as employee</span>
+                <a href="/logout/" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow transition">Logout</a>
+            </div>
+        </div>
+
+        <div class="mb-10 bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+            <label class="block text-sm font-semibold text-gray-700 mb-2 uppercase tracking-wider">AI Assistant Search</label>
+            <div class="relative">
+                <input v-model="searchQuery" @keyup.enter="askAI" 
+                    placeholder="Ask AI: 'I need something for a presentation' or 'What is best for coding?'" 
+                    class="w-full p-4 pr-12 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none text-lg transition shadow-inner">
+                <div class="absolute right-4 top-4 text-gray-400">
+                    <svg v-if="!loadingAI" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                </div>
+            </div>
+            <p v-if="loadingAI" class="text-sm text-blue-600 mt-3 flex items-center gap-2 animate-pulse">
+                <span class="inline-block w-2 h-2 bg-blue-600 rounded-full"></span>
+                Gemini is analyzing our inventory for you...
+            </p>
+            <p v-else class="text-xs text-gray-400 mt-2">Press Enter to let Gemini filter the results based on your needs.</p>
+        </div>
+
+        <div class="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+            <table class="min-w-full">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Device Name</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Brand</th>
+                        <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    <tr v-for="item in inventory" :key="item.id" class="hover:bg-gray-50 transition">
+                        <td class="px-6 py-4">
+                            <div class="font-bold text-gray-900">[[ item.name ]]</div>
+                            <div v-if="item.notes" class="text-xs text-red-500 mt-1">⚠️ [[ item.notes ]]</div>
+                        </td>
+                        <td class="px-6 py-4 text-gray-600">[[ item.brand ]]</td>
+                        <td class="px-6 py-4">
+                            <span :class="statusClass(item.status)" class="px-3 py-1 rounded-full text-xs font-medium uppercase">
+                                [[ item.status ]]
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button v-if="item.status === 'Available'" 
+                                    @click="rentItem(item.id)"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-md text-sm font-semibold shadow-sm transition">
+                                Rent
+                            </button>
+                            <button v-if="item.status === 'In Use'" 
+                                    @click="returnItem(item.id)"
+                                    class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-1.5 rounded-md text-sm font-semibold shadow-sm transition">
+                                Return
+                            </button>
+                            <span v-if="item.status === 'Repair'" class="text-gray-400 text-sm italic">Under Maintenance</span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div v-if="inventory.length === 0" class="p-10 text-center text-gray-500">
+                No hardware found matching your criteria. Try a different search.
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const { createApp } = Vue
+    createApp({
+        delimiters: ['[[', ']]'], 
+        data() {
+            return { 
+                inventory: [],
+                searchQuery: '',
+                loadingAI: false
+            }
+        },
+        mounted() {
+            this.fetchData()
+        },
+        methods: {
+            // Downloading devices
+            async fetchData() {
+                const res = await fetch('/api/inventory/');
+                this.inventory = await res.json();
+            },
+            
+            // AI Searching
+            async askAI() {
+                if (!this.searchQuery) {
+                    this.fetchData();
+                    return;
+                }
+                this.loadingAI = true;
+                try {
+                    const res = await fetch(`/api/ai-search/?q=${this.searchQuery}`);
+                    const data = await res.json();
+                    this.inventory = data.results; 
+                } catch (error) {
+                    console.error("AI Error:", error);
+                    alert("AI Search is temporarily unavailable.");
+                } finally {
+                    this.loadingAI = false;
+                }
+            },
+
+            // Rent logic
+            async rentItem(id) {
+                const res = await fetch(`/api/rent/${id}/`);
+                const data = await res.json();
+                if (data.error) {
+                    alert(data.error);
+                }
+                this.fetchData();
+            },
+
+            // Return logic
+            async returnItem(id) {
+                await fetch(`/api/return/${id}/`);
+                this.fetchData();
+            },
+
+            // Status colors
+            statusClass(status) {
+                return {
+                    'bg-green-100 text-green-800': status === 'Available',
+                    'bg-blue-100 text-blue-800': status === 'In Use',
+                    'bg-red-100 text-red-800': status === 'Repair'
+                }
+            }
+        }
+    }).mount('#app')
+    </script>
+</body>
+</html>

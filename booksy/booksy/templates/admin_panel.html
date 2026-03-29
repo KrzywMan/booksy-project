@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hardware Hub - Admin Center</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white">
+    <div id="app" class="container mx-auto p-8">
+        <div class="flex justify-between items-center mb-10">
+            <h1 class="text-3xl font-bold text-blue-400">🛡️ Admin Command Center</h1>
+            <a href="/" class="bg-gray-700 px-4 py-2 rounded">Back to Dashboard</a>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-slate-800 p-6 rounded-xl shadow-xl border border-slate-700">
+                <h2 class="text-xl font-semibold mb-4">Add New Hardware</h2>
+                <div class="space-y-4">
+                    <input v-model="newDevice.name" placeholder="Device Name (e.g. iPad Air)" class="w-full p-2 rounded bg-slate-700 border-none">
+                    <input v-model="newDevice.brand" placeholder="Brand" class="w-full p-2 rounded bg-slate-700 border-none">
+                    <button @click="addHardware" class="w-full bg-blue-600 p-2 rounded font-bold hover:bg-blue-500">Add Device</button>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-xl shadow-xl border border-slate-700">
+                <h2 class="text-xl font-semibold mb-4">Create Employee Account</h2>
+                <div class="space-y-4">
+                    <input v-model="newUser.username" placeholder="Username / Email" class="w-full p-2 rounded bg-slate-700 border-none">
+                    <input v-model="newUser.password" type="password" placeholder="Initial Password" class="w-full p-2 rounded bg-slate-700 border-none">
+                    <button @click="addUser" class="w-full bg-green-600 p-2 rounded font-bold hover:bg-green-500">Create Account</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-12 bg-slate-800 rounded-xl overflow-hidden shadow-xl">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-700 text-gray-300 uppercase">
+                    <tr>
+                        <th class="p-4">Name</th>
+                        <th class="p-4">Status</th>
+                        <th class="p-4 text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-700">
+                    <tr v-for="item in inventory" :key="item.id">
+                        <td class="p-4">[[ item.name ]]</td>
+                        <td class="p-4">[[ item.status ]]</td>
+                        <td class="p-4 text-right">
+                            <button @click="deleteHardware(item.id)" class="text-red-400 hover:text-red-200 uppercase font-bold text-xs">Delete</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const { createApp } = Vue
+        createApp({
+            delimiters: ['[[', ']]'],
+            data() {
+                return {
+                    inventory: [],
+                    newDevice: { name: '', brand: '' },
+                    newUser: { username: '', password: '' }
+                }
+            },
+            mounted() { this.fetchData() },
+            methods: {
+                async fetchData() {
+                    const res = await fetch('/api/inventory/');
+                    this.inventory = await res.json();
+                },
+                async addHardware() {
+                    await fetch('/api/hardware/add/', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify(this.newDevice)
+                    });
+                    this.newDevice = { name: '', brand: '' };
+                    this.fetchData();
+                },
+                async deleteHardware(id) {
+                    if(confirm('Are you sure?')) {
+                        await fetch(`/api/hardware/delete/${id}/`, {
+                            headers: {'X-CSRFToken': '{{ csrf_token }}'}
+                        });
+                        this.fetchData();
+                    }
+                },
+                async addUser() {
+                    const res = await fetch('/api/users/add/', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'},
+                        body: JSON.stringify(this.newUser)
+                    });
+                    if (res.ok) {
+                        alert('User created!');
+                        this.newUser = { username: '', password: '' };
+                    } else {
+                        alert('Error creating user');
+                    }
+                }
+            }
+        }).mount('#app')
+    </script>
+</body>
+</html>
